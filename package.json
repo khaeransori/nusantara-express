@@ -1,0 +1,28 @@
+{
+  "name": "nusantara-express",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nusantara Express: game edukasi piksel untuk anak. Oyen si kucing oren mengantar makanan khas ke seluruh Nusantara. Jalan offline di HP.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:review": "node scripts/build-review.mjs",
+    "serve": "python3 -m http.server 8080 --directory dist/pwa",
+    "map": "node tools/rasterize-world.mjs",
+    "map:review": "node tools/rasterize-map.mjs",
+    "test": "node test/play.mjs && node test/layout.mjs",
+    "test:play": "node test/play.mjs",
+    "test:layout": "node test/layout.mjs"
+  },
+  "dependencies": {
+    "@fontsource/nunito": "^5.3.0",
+    "@fontsource/pixelify-sans": "^5.3.0"
+  },
+  "devDependencies": {
+    "d3-geo": "^3.1.1",
+    "playwright": "^1.56.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "license": "UNLICENSED"
+}

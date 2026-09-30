@@ -153,12 +153,17 @@
 
   let last = performance.now();
   let seenW = 0, seenH = 0;
+  // The first frame's timestamp can be a hair earlier than `last`, so dt is floored at 0 (a negative clock
+  // once made a sprite lookup throw and killed the loop). The next frame is booked before any game code runs,
+  // so one bad frame can never freeze the game.
   function loop(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (game.clientWidth !== seenW || game.clientHeight !== seenH) { seenW = game.clientWidth; seenH = game.clientHeight; if (scene) fit(); }
-    if (!paused) { clock += dt; if (scene && scene.update) scene.update(dt); }
-    if (scene) scene.draw(Math.floor(clock * 8), clock);
     requestAnimationFrame(loop);
+    const dt = clamp((now - last) / 1000, 0, 0.05); last = Math.max(last, now);
+    try {
+      if (game.clientWidth !== seenW || game.clientHeight !== seenH) { seenW = game.clientWidth; seenH = game.clientHeight; if (scene) fit(); }
+      if (!paused) { clock += dt; if (scene && scene.update) scene.update(dt); }
+      if (scene) scene.draw(Math.floor(clock * 8), clock);
+    } catch (e) { if (!loop.warned) { loop.warned = true; console.error(e); } }
   }
 
   /* ================= overlays: talk, cards, toasts, fade ================= */

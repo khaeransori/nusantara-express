@@ -1,0 +1,53 @@
+name: Deploy ke Arcade (main.khaeransori.com/nusantara-express)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: arcade
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      # Dilewati (tidak gagal) sampai secret Arcade untuk repo ini diisi.
+      HAS_ARCADE: ${{ secrets.ARCADE_SSH_KEY != '' && secrets.ARCADE_KNOWN_HOSTS != '' && secrets.ARCADE_HOST != '' }}
+    steps:
+      - name: Cek secret Arcade
+        if: env.HAS_ARCADE != 'true'
+        run: echo "::notice::Secret ARCADE_SSH_KEY, ARCADE_KNOWN_HOSTS, dan ARCADE_HOST belum diisi di repo ini. Deploy ke Arcade dilewati."
+      - uses: actions/checkout@v4
+        if: env.HAS_ARCADE == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_ARCADE == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.HAS_ARCADE == 'true'
+      - run: npm run build
+        if: env.HAS_ARCADE == 'true'
+      - name: Siapkan kunci SSH
+        if: env.HAS_ARCADE == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ARCADE_SSH_KEY }}" > ~/.ssh/arcade
+          chmod 600 ~/.ssh/arcade
+          echo "${{ secrets.ARCADE_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+      - name: Upload ke server
+        if: env.HAS_ARCADE == 'true'
+        run: |
+          # game.json & thumb.jpg dikelola server (katalog arcade), jangan dihapus
+          rsync -rtz --delete --exclude game.json --exclude thumb.jpg --exclude .deployed --exclude CARA-PASANG.txt \
+            -e "ssh -i ~/.ssh/arcade" dist/pwa/ ubuntu@${{ secrets.ARCADE_HOST }}:
+          date -u +%FT%TZ > .deployed
+          rsync -t -e "ssh -i ~/.ssh/arcade" .deployed ubuntu@${{ secrets.ARCADE_HOST }}:.deployed
+      - name: Cek live
+        if: env.HAS_ARCADE == 'true'
+        run: |
+          sleep 5
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" https://main.khaeransori.com/nusantara-express/
