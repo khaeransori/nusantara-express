@@ -4,6 +4,8 @@ Game edukasi piksel untuk anak. Oyen, kucing oren pemilik jasa antar Nusantara E
 
 **Main sekarang:** https://khaeransori.github.io/nusantara-express/
 
+Rencana pengembangan: [docs/PRD.md](docs/PRD.md).
+
 ## Main di HP
 
 1. Buka https://khaeransori.github.io/nusantara-express/ di Chrome (Android) atau Safari (iPhone).
