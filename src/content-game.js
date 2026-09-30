@@ -150,7 +150,7 @@
       paused: 'Jeda', continue: 'Lanjut', toTitle: 'Layar judul', restart: 'Mulai dari awal',
       sure: 'Yakin? Semua koin, bintang, dan kartu akan hilang.', yesRestart: 'Ya, mulai lagi', cancel: 'Batal',
       rotate: 'Putar HP-mu biar layarnya lebih lebar.', keep: 'Lanjut saja',
-      from: 'Dari', to: 'Ke'
+      from: 'Dari', to: 'Ke', full: 'Layar penuh'
     },
     en: {
       play: "Let's Fly!", resume: 'Keep Flying!', tagline: 'Deliver local dishes across the islands with Oyen!',
@@ -176,7 +176,7 @@
       paused: 'Paused', continue: 'Continue', toTitle: 'Title screen', restart: 'Start over',
       sure: 'Sure? All coins, stars and cards will be gone.', yesRestart: 'Yes, start over', cancel: 'Cancel',
       rotate: 'Turn your phone sideways for a wider view.', keep: 'Keep going',
-      from: 'From', to: 'To'
+      from: 'From', to: 'To', full: 'Full screen'
     }
   };
 })(NX);

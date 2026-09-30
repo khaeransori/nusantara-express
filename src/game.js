@@ -92,8 +92,20 @@
   /* ================= canvas + scene plumbing ================= */
   const game = $('#game'), cv = $('#world'), ctx = cv.getContext('2d');
   let scene = null, SCALE = 1, paused = false, clock = 0;
-  function fit() {
+  // The stage fills the real visible box of #game. On a portrait touch screen it is turned 90deg so the
+  // game plays in landscape; this happens inside #game, so fullscreen on #game keeps the rotation.
+  const stage = $('#stage');
+  let turnedState = false;
+  function layoutStage() {
     const W = game.clientWidth, H = game.clientHeight;
+    turnedState = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) && H > W;
+    stage.style.width = (turnedState ? H : W) + 'px';
+    stage.style.height = (turnedState ? W : H) + 'px';
+    stage.style.transform = turnedState ? `translateX(${W}px) rotate(90deg)` : 'none';
+  }
+  function fit() {
+    layoutStage();
+    const W = stage.clientWidth, H = stage.clientHeight;
     SCALE = scene.scale(W, H);
     cv.width = Math.ceil(W / SCALE); cv.height = Math.ceil(H / SCALE);
     cv.style.width = cv.width * SCALE + 'px'; cv.style.height = cv.height * SCALE + 'px';
@@ -106,8 +118,12 @@
     if (s.enter) s.enter();
   }
   let resizeT = 0;
-  addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => scene && fit(), 60); });
-  const turned = () => getComputedStyle(game).transform !== 'none';
+  const refit = () => { clearTimeout(resizeT); resizeT = setTimeout(() => scene && fit(), 60); };
+  addEventListener('resize', refit);
+  addEventListener('orientationchange', refit);
+  document.addEventListener('fullscreenchange', () => { refit(); renderFsBtns(); });
+  if (window.visualViewport) visualViewport.addEventListener('resize', refit);
+  const turned = () => turnedState;
   const toLogical = e => {
     const r = cv.getBoundingClientRect();
     if (turned()) return [(e.clientY - r.top) / r.height * cv.width, (r.right - e.clientX) / r.width * cv.height];
@@ -273,7 +289,7 @@
   // Layout offsets, not screen rects: they stay correct when the game is rotated for portrait phones.
   function edgeH(sel, fromTop) {
     const el = $(sel); if (!el || !el.offsetHeight) return 0;
-    return fromTop ? el.offsetTop + el.offsetHeight : game.clientHeight - el.offsetTop;
+    return fromTop ? el.offsetTop + el.offsetHeight : stage.clientHeight - el.offsetTop;
   }
   function routePts(a, b) {
     const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -568,7 +584,7 @@
     document.querySelectorAll('[data-gt]').forEach(el => { el.textContent = T(el.dataset.gt); });
     document.querySelectorAll('[data-setlang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.setlang === lang)));
     $('#title .play').textContent = G.introDone ? T('resume') : T('play');
-    renderSoundBtns(); refresh();
+    renderSoundBtns(); renderFsBtns(); refresh();
     if (!$('#book').hidden) renderBook();
     if (scene && scene.name === 'map') placeLabels();
   }
@@ -613,9 +629,11 @@
           <button type="button" class="gbtn primary" data-m="resume">${esc(T('continue'))}</button>
           <div class="row"><span>${esc(T('lang'))}</span><div class="gseg"><button type="button" data-setlang="id" aria-pressed="${G.lang === 'id'}">ID</button><button type="button" data-setlang="en" aria-pressed="${G.lang === 'en'}">EN</button></div></div>
           <button type="button" class="gbtn" data-act="sound"></button>
+          <button type="button" class="gbtn" data-act="fs"></button>
           ${inFlight ? '' : `<button type="button" class="gbtn" data-m="title">${esc(T('toTitle'))}</button><button type="button" class="gbtn danger" data-m="restart">${esc(T('restart'))}</button>`}
         </div></div>`;
-      renderSoundBtns();
+      renderSoundBtns(); renderFsBtns();
+      m.querySelector('[data-act="fs"]').onclick = () => { Snd.click(); goFullscreen().then(render); };
       m.querySelector('[data-m="resume"]').onclick = () => { Snd.click(); m.hidden = true; m.innerHTML = ''; paused = false; };
       m.querySelectorAll('[data-setlang]').forEach(b => { b.onclick = () => { Snd.click(); applyLang(b.dataset.setlang); render(); }; });
       m.querySelector('[data-act="sound"]').onclick = () => { G.sound = !G.sound; save(); Snd.ensure(); Snd.click(); renderSoundBtns(); };
@@ -629,6 +647,22 @@
       };
     };
     render(); m.hidden = false;
+  }
+
+  /* ================= fullscreen ================= */
+  // Fullscreen #game itself, then try to lock landscape. Either may be refused or never answer
+  // inside an embedded viewer, so each gets a short timeout and can never hold up the game.
+  const settle = p => Promise.race([Promise.resolve(p).catch(() => {}), new Promise(r => setTimeout(r, 700))]);
+  const canFs = () => !!(document.fullscreenEnabled !== false && (game.requestFullscreen || game.webkitRequestFullscreen));
+  async function goFullscreen() {
+    if (!document.fullscreenElement && canFs()) {
+      try { await settle(game.requestFullscreen ? game.requestFullscreen({ navigationUI: 'hide' }) : game.webkitRequestFullscreen()); } catch (e) { /* refused */ }
+    }
+    if (document.fullscreenElement && screen.orientation && screen.orientation.lock) { try { await settle(screen.orientation.lock('landscape')); } catch (e) { /* refused */ } }
+    refit(); renderFsBtns();
+  }
+  function renderFsBtns() {
+    document.querySelectorAll('[data-act="fs"]').forEach(b => { b.hidden = !canFs() || !!document.fullscreenElement; b.textContent = T('full'); });
   }
 
   /* ================= game flow ================= */
@@ -729,12 +763,7 @@
   function goTitle() { $('#book').hidden = true; setScene(TitleScene); applyLang(G.lang); }
   async function startPlay() {
     Snd.ensure(); Snd.click();
-    // Fullscreen the page (not #game, whose rotation the browser would strip) and try to lock landscape.
-    // Either may be refused or never answer inside an embed, so neither is allowed to hold up the game.
-    const settle = p => Promise.race([Promise.resolve(p).catch(() => {}), new Promise(r => setTimeout(r, 700))]);
-    const root = document.documentElement;
-    if (window.matchMedia('(pointer: coarse)').matches && root.requestFullscreen && !document.fullscreenElement) { try { await settle(root.requestFullscreen()); } catch (e) { /* refused */ } }
-    if (screen.orientation && screen.orientation.lock) { try { await settle(screen.orientation.lock('landscape')); } catch (e) { /* refused */ } }
+    if (window.matchMedia('(pointer: coarse)').matches) await goFullscreen();
     await fade(() => setScene(MapScene));
     busy = true;
     try {
@@ -747,6 +776,7 @@
   /* ================= wire up ================= */
   $('#title .play').onclick = startPlay;
   document.querySelectorAll('[data-setlang]').forEach(b => { b.onclick = () => { Snd.ensure(); Snd.click(); applyLang(b.dataset.setlang); }; });
+  document.querySelectorAll('#title [data-act="fs"]').forEach(b => { b.onclick = () => { Snd.ensure(); Snd.click(); goFullscreen(); }; });
   document.querySelectorAll('#title [data-act="sound"]').forEach(b => { b.onclick = () => { G.sound = !G.sound; save(); Snd.ensure(); Snd.click(); renderSoundBtns(); }; });
   $('#hud [data-act="book"]').onclick = () => { if (!busy) openBook(); };
   $('#hud [data-act="base"]').onclick = () => { if (!busy) { Snd.click(); fade(() => setScene(BaseScene)); } };
