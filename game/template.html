@@ -79,10 +79,22 @@ button { font: inherit; color: inherit; }
 #task .tt b { font-weight: 700; }
 #task .tt small { font-size: .82em; color: var(--g-muted); }
 #task .gbtn { font-size: .9em; }
+/* short screens (landscape phone inside a viewer): task moves into the top row so the map gets the height */
+#game.compact { --fs: clamp(12px, 1.6vmin + 7px, 16px); }
+#game.compact #task { top: calc(6px + var(--st)); bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 400px); min-width: 180px; min-height: 0; padding: .3em .5em .45em; gap: .5em; }
+#game.compact #task .tt small { display: none; }
+#game.compact #task .tt b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#game.compact #task [data-spr] canvas { width: 24px !important; }
+#game.compact .acts-top .l { display: none; }
+#game.compact .acts-top .gbtn { padding: .35em .45em .5em; }
+#game.compact .stats { gap: .6em; padding: .3em .55em .4em; }
 #labels { position: absolute; inset: 0; pointer-events: none; }
 .city { position: absolute; transform: translate(-50%, 5px); pointer-events: auto; cursor: pointer; border: 0; padding: .15em .35em .25em; font: 600 clamp(10px, 1.1vmin + 6px, 14px)/1 var(--f-pixel);
   background: var(--g-paper); color: var(--g-ink); box-shadow: 0 0 0 2px var(--g-ink); white-space: nowrap; }
 .city.end { transform: translate(calc(-100% + 10px), 5px); }
+.city.start { transform: translate(-10px, 5px); }
+.isle.start { transform: translate(-6px, -50%); }
+.isle.end { transform: translate(calc(-100% + 6px), -50%); }
 .isle { position: absolute; transform: translate(-50%, -50%); font: 700 clamp(11px, 1.6vmin + 6px, 20px)/1 var(--f-pixel); letter-spacing: .12em; text-transform: uppercase;
   color: rgba(255, 250, 240, .92); text-shadow: 2px 0 0 var(--g-ink), -2px 0 0 var(--g-ink), 0 2px 0 var(--g-ink), 0 -2px 0 var(--g-ink); white-space: nowrap; }
 

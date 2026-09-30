@@ -105,6 +105,7 @@
   }
   function fit() {
     layoutStage();
+    game.classList.toggle('compact', stage.clientHeight < 380);
     const W = stage.clientWidth, H = stage.clientHeight;
     SCALE = scene.scale(W, H);
     cv.width = Math.ceil(W / SCALE); cv.height = Math.ceil(H / SCALE);
@@ -129,10 +130,11 @@
     if (turned()) return [(e.clientY - r.top) / r.height * cv.width, (r.right - e.clientX) / r.width * cv.height];
     return [(e.clientX - r.left) / r.width * cv.width, (e.clientY - r.top) / r.height * cv.height];
   };
-  cv.addEventListener('pointerdown', e => { Snd.ensure(); try { cv.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } if (scene.down) scene.down(...toLogical(e)); });
-  cv.addEventListener('pointermove', e => { if (scene.move) scene.move(...toLogical(e)); });
-  const up = e => { if (scene.up) scene.up(...toLogical(e)); };
+  cv.addEventListener('pointerdown', e => { Snd.ensure(); try { cv.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } if (scene.down) scene.down(...toLogical(e), e); });
+  cv.addEventListener('pointermove', e => { if (scene.move) scene.move(...toLogical(e), e); });
+  const up = e => { if (scene.up) scene.up(...toLogical(e), e); };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { if (scene.wheel) { e.preventDefault(); scene.wheel(e.deltaY); } }, { passive: false });
   const keys = {};
   addEventListener('keydown', e => {
     if (['ArrowUp', 'KeyW'].includes(e.code)) keys.up = true;
@@ -150,8 +152,10 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && scene && scene.name === 'flight' && scene.phase !== 'ready') openMenu(); });
 
   let last = performance.now();
+  let seenW = 0, seenH = 0;
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (game.clientWidth !== seenW || game.clientHeight !== seenH) { seenW = game.clientWidth; seenH = game.clientHeight; if (scene) fit(); }
     if (!paused) { clock += dt; if (scene && scene.update) scene.update(dt); }
     if (scene) scene.draw(Math.floor(clock * 8), clock);
     requestAnimationFrame(loop);
@@ -298,16 +302,69 @@
     for (let i = 0; i <= n; i++) { const s = i / n, u = 1 - s; pts.push([u * u * a[0] + 2 * u * s * c[0] + s * s * b[0], u * u * a[1] + 2 * u * s * c[1] + s * s * b[1]]); }
     return pts;
   }
+  // Box that holds every pin and label, in core-map pixels. Default zoom fits it to the free area.
+  const CITIES_BOX = { x0: 13, x1: 172, y0: 15, y1: 62 };
   const MapScene = {
-    name: 'map',
-    scale(W, H) { const top = edgeH('#hud', true), bot = edgeH('#task', false); return Math.max(1, Math.min(W / 178, (H - top - bot - 6) / 68)); },
+    name: 'map', zoom: 1, cx: null, cy: null, pts: new Map(), pinch: null, moved: false,
+    edges() { const c = game.classList.contains('compact'); return [Math.max(edgeH('#hud', true), c ? edgeH('#task', true) : 0), c ? 6 : edgeH('#task', false)]; },
+    free(W, H) { const [t, b] = this.edges(); return [W, H - t - b]; },
+    scale(W, H) {
+      const [fw, fh] = this.free(W, H);
+      this.base = Math.max(1, Math.min(fw / (CITIES_BOX.x1 - CITIES_BOX.x0), fh / (CITIES_BOX.y1 - CITIES_BOX.y0)));
+      this.minZoom = Math.min(1, Math.min(W / (WLD.W - 8), H / (WLD.H - 8)) / this.base);
+      this.zoom = clamp(this.zoom, this.minZoom, 3);
+      return this.base * this.zoom;
+    },
     layout(w, h) {
       if (!worldBg) worldBg = offscreen(worldBase());
-      const top = edgeH('#hud', true) / SCALE, bot = edgeH('#task', false) / SCALE;
-      this.ox = Math.round((w - 168) / 2);
-      this.oy = Math.round(top + Math.max(0, (h - top - bot - 64) / 2));
-      placeLabels();
+      const [t, b] = this.edges(); this.top = t / SCALE; this.bot = b / SCALE;
+      if (this.cx === null) { this.cx = (CITIES_BOX.x0 + CITIES_BOX.x1) / 2; this.cy = (CITIES_BOX.y0 + CITIES_BOX.y1) / 2; }
+      this.place(w, h); placeLabels();
     },
+    // Put the focus point (cx, cy in core-map px) at the centre of the free area, keeping the map raster under the whole view.
+    place(w, h) {
+      const fx = w / 2, fy = this.top + (h - this.top - this.bot) / 2;
+      const lim = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : clamp(v, lo, hi));
+      this.ox = Math.round(lim(fx - this.cx, w - WLD.W + WLD.MX, WLD.MX));
+      this.oy = Math.round(lim(fy - this.cy, h - WLD.H + WLD.MY, WLD.MY));
+      this.cx = fx - this.ox; this.cy = fy - this.oy;
+    },
+    show(cities) {
+      if (!cities.length || this.ox === undefined) return;
+      const w = cv.width, h = cv.height, m = 10;
+      let dx = 0, dy = 0;
+      cities.forEach(id => {
+        const [x, y] = this.pos(id);
+        if (x < m) dx = Math.max(dx, m - x); if (x > w - m) dx = Math.min(dx, w - m - x);
+        if (y - 8 < this.top + 2) dy = Math.max(dy, this.top + 2 - (y - 8)); if (y + 8 > h - this.bot - 2) dy = Math.min(dy, h - this.bot - 2 - (y + 8));
+      });
+      if (dx || dy) { this.cx -= dx; this.cy -= dy; this.place(w, h); moveLabels(); }
+    },
+    down(x, y, e) {
+      this.pts.set(e.pointerId, { x, y, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY });
+      if (this.pts.size === 1) { this.moved = false; this.downAt = [x, y]; }
+      if (this.pts.size === 2) { const [a, b] = [...this.pts.values()]; this.pinch = { d: Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1, zoom: this.zoom }; this.moved = true; }
+    },
+    move(x, y, e) {
+      const p = this.pts.get(e.pointerId); if (!p) return;
+      p.cx = e.clientX; p.cy = e.clientY;
+      if (this.pts.size === 1) {
+        if (!this.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 8) this.moved = true;
+        if (this.moved && !isNaN(p.x)) { this.cx -= x - p.x; this.cy -= y - p.y; this.place(cv.width, cv.height); moveLabels(); }
+        p.x = x; p.y = y;
+      } else if (this.pinch && this.pts.size === 2) {
+        const [a, b] = [...this.pts.values()];
+        this.zoom = this.pinch.zoom * Math.hypot(a.cx - b.cx, a.cy - b.cy) / this.pinch.d;
+        fit(); this.pts.forEach(q => { q.x = NaN; });
+      }
+    },
+    up(x, y, e) {
+      const had = this.pts.delete(e.pointerId);
+      if (had && this.pts.size === 0 && !this.moved) { const c = this.cityAt(...this.downAt); if (c) onCity(c); }
+      if (this.pts.size < 2) this.pinch = null;
+      if (this.pts.size === 1) { const [q] = [...this.pts.values()]; q.x = NaN; this.moved = true; }
+    },
+    wheel(dy) { this.zoom *= Math.pow(1.0015, -dy); fit(); },
     pos(city) { const c = NX.CITIES[city], [x, y] = mapXY(c.lon, c.lat); return [this.ox + x, this.oy + y]; },
     cityAt(x, y) {
       let best = null, bd = 10;
@@ -339,21 +396,28 @@
       const [lx, ly] = this.pos(G.loc);
       blitSpr(SPR.miniPlane, Math.round(lx) + 1, Math.round(ly) - 14 + ((f >> 2) % 2));
     },
-    down(x, y) { const c = this.cityAt(x, y); if (c) onCity(c); }
   };
+  let labelEls = [];
   function placeLabels() {
-    const box = $('#labels'), s = MapScene; box.textContent = '';
-    for (const [id, isl] of Object.entries(NX.ISLANDS)) {
-      const [x, y] = mapXY(isl.lon, isl.lat), el = document.createElement('span');
-      el.className = 'isle'; el.textContent = isl.name;
-      el.style.left = (s.ox + x) * SCALE + 'px'; el.style.top = (s.oy + y) * SCALE + 'px'; box.appendChild(el);
+    const box = $('#labels'); box.textContent = ''; labelEls = [];
+    for (const isl of Object.values(NX.ISLANDS)) {
+      const el = document.createElement('span'); el.className = 'isle'; el.textContent = isl.name;
+      box.appendChild(el); labelEls.push({ el, xy: mapXY(isl.lon, isl.lat) });
     }
     for (const [id, c] of Object.entries(NX.CITIES)) {
-      const [x, y] = mapXY(c.lon, c.lat), b = document.createElement('button');
-      b.type = 'button'; b.className = 'city' + (x > 150 ? ' end' : ''); b.textContent = c.name;
-      b.style.left = (s.ox + x) * SCALE + 'px'; b.style.top = (s.oy + y) * SCALE + 'px';
-      b.onclick = () => { Snd.ensure(); onCity(id); }; box.appendChild(b);
+      const xy = mapXY(c.lon, c.lat), b = document.createElement('button');
+      b.type = 'button'; b.className = 'city'; b.textContent = c.name;
+      b.onclick = () => { Snd.ensure(); onCity(id); }; box.appendChild(b); labelEls.push({ el: b, xy, city: true });
     }
+    moveLabels();
+  }
+  function moveLabels() {
+    const s = MapScene, w = cv.width;
+    labelEls.forEach(({ el, xy, city }) => {
+      const x = s.ox + xy[0], y = s.oy + xy[1];
+      el.style.left = x * SCALE + 'px'; el.style.top = y * SCALE + 'px';
+      el.classList.toggle('end', x > w - 14); el.classList.toggle('start', x < 14);
+    });
   }
 
   /* ================= flight scene ================= */
@@ -577,7 +641,16 @@
     fillSprites(el);
     const btn = el.querySelector('[data-act="clue"]'); if (btn) btn.onclick = () => { if (!busy) showOrder(false); };
   }
-  function refresh() { renderHud(); renderTask(); if (scene && scene.name === 'map') fit(); }
+  function refresh() {
+    renderHud(); renderTask();
+    if (scene && scene.name === 'map') {
+      fit();
+      const o = G.order, want = [G.loc];
+      if (o && G.step === 'deliver') want.push(o.to);
+      if (o && G.step === 'pickup' && G.wrong >= 2) want.push(dish(o.dish).city);
+      MapScene.show(want);
+    }
+  }
 
   function applyLang(lang) {
     G.lang = lang; save(); document.documentElement.lang = lang;
