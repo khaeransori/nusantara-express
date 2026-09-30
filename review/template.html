@@ -1,0 +1,369 @@
+<title>Nusantara Express Asset Sheet</title>
+<style>
+/* Layout: a courier's logbook. One column of sections; every asset sits on a checkered "stage" like a sprite editor. */
+/*__FONTS__*/
+:root {
+  --bg: #e9f3f2; --surface: #f8fcfb; --ink: #241a2c; --muted: #585469; --line: #c3d9d7;
+  --accent: #1d6aab; --sun: #f7a23b; --sun-ink: #9a520c;
+  --stage: #d6eef1; --stage2: #c8e6ea; --topbar: rgba(233, 243, 242, .9);
+  /* game UI colors: fixed, the game has one look in both themes */
+  --g-ink: #2b1d2e; --g-paper: #fffaf0; --g-cream: #fff0c2; --g-orange: #f7a23b; --g-orange-d: #d4721f;
+  --g-red: #e2463b; --g-red-d: #a8313a; --g-sea: #2d82c9; --g-sky: #52bde8; --g-sand: #f3dc9b; --g-sand-d: #d9b766;
+  --g-green: #5fbf48; --g-green-d: #2f8f45; --g-gold: #ffcc33;
+  --f-pixel: "Pixelify Sans", ui-monospace, "Courier New", monospace;
+  --f-body: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --f-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1a2a; --surface: #13233a; --ink: #f1ebe0; --muted: #a6b0c0; --line: #243852;
+  --accent: #6cc0f0; --sun: #ffb04d; --sun-ink: #ffc97a;
+  --stage: #19304d; --stage2: #1c3553; --topbar: rgba(14, 26, 42, .9); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1a2a; --surface: #13233a; --ink: #f1ebe0; --muted: #a6b0c0; --line: #243852;
+  --accent: #6cc0f0; --sun: #ffb04d; --sun-ink: #ffc97a;
+  --stage: #19304d; --stage2: #1c3553; --topbar: rgba(14, 26, 42, .9); color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--f-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 16px; }
+canvas.spr, #hero, #map { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: 100%; height: auto; }
+h1, h2, h3, h4 { font-family: var(--f-pixel); text-wrap: balance; margin: 0; line-height: 1.1; }
+p { margin: 0; }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--topbar); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.brand b { font: 700 18px/1.1 var(--f-pixel); }
+.brand span { font-size: 13px; color: var(--muted); }
+.langs { display: flex; align-items: center; gap: 8px; }
+.langs .lbl { font-size: 13px; color: var(--muted); }
+
+/* game-styled controls (shared by top bar and UI kit) */
+.gbtn, .gseg button {
+  font: 700 16px/1 var(--f-pixel); color: var(--g-ink); border: 0; cursor: pointer; padding: 10px 16px 13px;
+  background: var(--g-paper);
+  box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 #d6cdc4;
+  transition: transform .06s;
+}
+.gbtn:active, .gseg button:active { transform: translateY(2px); box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -1px 0 0 #d6cdc4; }
+.gbtn:focus-visible, .gseg button:focus-visible { outline: 3px dashed var(--accent); outline-offset: 6px; }
+.gbtn.primary { background: var(--g-orange); box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 var(--g-orange-d), inset 0 3px 0 0 rgba(255,255,255,.35); font-size: 20px; padding: 12px 22px 15px; }
+.gbtn.sea { background: var(--g-sky); box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 var(--g-sea); }
+.gseg { display: flex; gap: 3px; margin: 3px; }
+.gseg button { padding: 7px 10px 10px; font-size: 15px; }
+.gseg button[aria-pressed="true"] { background: var(--g-orange); box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 var(--g-orange-d); }
+
+/* hero */
+.hero { position: relative; margin-top: 20px; background: var(--g-ink); padding: 4px; }
+.hero canvas { width: 100%; aspect-ratio: 2 / 1; }
+.hero-title { position: absolute; left: 4%; top: 7%; max-width: 56%; display: flex; flex-direction: column; gap: 10px; }
+.hero h1 { font-weight: 700; font-size: clamp(26px, 7.2vw, 76px); letter-spacing: .01em; line-height: .95; display: flex; flex-direction: column; }
+.hero h1 span { color: var(--g-orange); --o: clamp(2px, .45vw, 4px);
+  text-shadow: var(--o) 0 0 var(--g-ink), calc(var(--o) * -1) 0 0 var(--g-ink), 0 var(--o) 0 var(--g-ink), 0 calc(var(--o) * -1) 0 var(--g-ink),
+    var(--o) var(--o) 0 var(--g-ink), calc(var(--o) * -1) var(--o) 0 var(--g-ink), var(--o) calc(var(--o) * -1) 0 var(--g-ink), calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--g-ink),
+    0 calc(var(--o) * 2.5) 0 var(--g-ink); }
+.hero h1 span + span { color: var(--g-paper); }
+.tagline { font: 500 clamp(11px, 1.9vw, 19px)/1.25 var(--f-pixel); background: var(--g-cream); color: var(--g-ink); padding: 6px 10px 8px; align-self: flex-start;
+  box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink); margin: 3px; }
+.lede { margin-top: 20px; display: grid; gap: 8px; max-width: 68ch; }
+.lede .note { font-size: 19px; font-weight: 700; }
+.lede p:last-child { color: var(--muted); }
+
+/* sections */
+section.sec { padding-block: 44px 8px; }
+.sec-head { display: grid; gap: 6px; margin-bottom: 20px; max-width: 68ch; }
+.sec-head h2 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; }
+.sec-head h2::after { content: ""; display: block; width: 32px; height: 5px; margin-top: 10px; background: var(--sun); box-shadow: 8px 0 0 var(--bg), 16px 0 0 var(--sun); }
+.sec-head p { color: var(--muted); }
+
+.grid { display: grid; gap: 14px; }
+[data-spr] { flex: none; display: inline-block; line-height: 0; }
+.g-people { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.g-food { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g-house { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.g-house .card { grid-column: span 2; }
+.g-house .card.wide { grid-column: span 3; }
+@media (max-width: 900px) {
+  .g-people { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(180px, 46%); overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+  .g-people .card { scroll-snap-align: start; }
+  .g-food { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g-house { grid-template-columns: minmax(0, 1fr); }
+  .g-house .card, .g-house .card.wide { grid-column: auto; }
+}
+.card { background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+.stage { display: grid; place-items: center; padding: 16px 10px; min-height: 150px;
+  background-color: var(--stage); background-image: conic-gradient(var(--stage2) 25%, transparent 0 50%, var(--stage2) 0 75%, transparent 0); background-size: 16px 16px; }
+.stage.tall { min-height: 192px; }
+.card-body { padding: 12px 14px 14px; display: grid; gap: 4px; font-size: 14.5px; align-content: start; }
+.card-body h4 { font-size: 20px; font-weight: 600; }
+.place { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--sun-ink); font-weight: 700; }
+.aside { color: var(--muted); font-size: 13px; }
+
+/* tone */
+.pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.pillar { border-top: 5px solid var(--sun); background: var(--surface); padding: 14px 16px 16px; display: grid; gap: 6px; align-content: start; }
+.pillar h3 { font-size: 21px; font-weight: 600; }
+.pal-wrap { margin-top: 28px; display: grid; gap: 10px; }
+.pal-wrap h3 { font-size: 20px; font-weight: 600; }
+.pal-wrap > p { color: var(--muted); }
+#palette { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { #palette { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+#palette li { display: grid; gap: 2px; font-size: 13px; }
+.sw { display: block; height: 44px; border: 3px solid var(--g-ink); }
+.sw-name { font-weight: 700; }
+#palette code { font: 12px var(--f-code); color: var(--muted); }
+
+/* characters */
+.hero-char { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 0; margin-bottom: 14px; }
+.hero-char .stage { min-height: 240px; }
+.hero-char .card-body { padding: 20px 22px; gap: 8px; font-size: 16px; align-content: center; }
+.hero-char h3 { font-size: 34px; font-weight: 700; }
+.chip { justify-self: start; font: 600 13px/1 var(--f-pixel); background: var(--sun); color: var(--g-ink); padding: 5px 8px 6px; }
+.face-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 6px; }
+.face-row figure { margin: 0; display: grid; gap: 4px; justify-items: center; font-size: 12px; color: var(--muted); }
+
+/* vehicles */
+.g-veh { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.g-veh .stage { min-height: 210px; }
+
+/* map */
+.map-frame { background: var(--g-ink); padding: 4px; overflow-x: auto; }
+.map-inner { position: relative; min-width: 680px; }
+.map-frame canvas { width: 100%; aspect-ratio: 168 / 64; }
+#map-labels { position: absolute; inset: 0; pointer-events: none; }
+.map-label { position: absolute; transform: translate(-50%, 6px); font: 600 12px/1 var(--f-pixel); color: var(--g-ink); background: var(--g-paper); padding: 2px 4px 3px; white-space: nowrap; box-shadow: 0 0 0 2px var(--g-ink); }
+.map-label.end { transform: translate(calc(-100% + 8px), 6px); }
+.map-hint { display: none; font-size: 13px; color: var(--muted); margin-top: 8px; }
+@media (max-width: 720px) { .map-hint { display: block; } }
+#legend { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 16px; font-size: 14.5px; }
+@media (max-width: 900px) { #legend { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#legend li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.map-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+/* UI kit */
+.ui-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.ui-cell { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.ui-cell > h3 { font: 700 12px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.board { background-color: var(--g-sky); background-image: linear-gradient(transparent 70%, rgba(45,130,201,.35) 70%); padding: 22px 18px; display: grid; gap: 16px; justify-items: stretch; border: 3px solid var(--g-ink); }
+.gp { font-family: var(--f-pixel); color: var(--g-ink); background: var(--g-paper); margin: 3px;
+  box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 #e6ddd0; }
+.hud { display: flex; align-items: center; gap: 14px; padding: 8px 10px 10px; background: var(--g-ink); box-shadow: 0 0 0 3px var(--g-paper); color: var(--g-paper); font: 700 18px/1 var(--f-pixel); flex-wrap: wrap; }
+.hud .it { display: flex; align-items: center; gap: 6px; }
+.hud .pause { margin-left: auto; font-size: 13px; padding: 6px 9px 8px; }
+.order .ribbon { background: var(--g-red); color: var(--g-paper); font: 700 18px/1 var(--f-pixel); padding: 8px 12px 10px; box-shadow: inset 0 -4px 0 0 var(--g-red-d); }
+.order .who { display: flex; gap: 10px; align-items: center; padding: 12px 12px 0; }
+.order .who b { display: block; font-size: 18px; }
+.order .who small { font-size: 13px; color: #6b5f66; }
+.order .msg { padding: 10px 12px 0; font-size: 16px; line-height: 1.35; }
+.order .clue { margin: 12px; padding: 8px 10px 10px; background: var(--g-sand); box-shadow: inset 0 -3px 0 0 var(--g-sand-d); font-size: 15px; line-height: 1.3; display: grid; gap: 4px; }
+.order .clue b { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8e5a36; }
+.order .acts { display: flex; gap: 12px; padding: 4px 12px 16px; flex-wrap: wrap; }
+.dialog { position: relative; display: flex; gap: 10px; padding: 16px 12px 16px 10px; margin-top: 16px; align-items: center; }
+.dialog .tag { position: absolute; top: -16px; left: 10px; background: var(--g-orange); padding: 4px 8px 6px; font: 700 15px/1 var(--f-pixel); box-shadow: 0 0 0 3px var(--g-ink), inset 0 -3px 0 0 var(--g-orange-d); }
+.dialog p { font-size: 17px; line-height: 1.35; }
+.dialog .next { position: absolute; right: 12px; bottom: 8px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid var(--g-ink); animation: nudge 1s steps(2) infinite; }
+@keyframes nudge { 50% { transform: translateY(3px); } }
+.fact .fh { background: var(--g-sea); color: var(--g-paper); font: 700 18px/1 var(--f-pixel); padding: 8px 12px 10px; box-shadow: inset 0 -4px 0 0 #1d4f91; }
+.fact .fb { display: flex; gap: 12px; padding: 12px; align-items: center; }
+.fact .fb p { font-size: 15.5px; line-height: 1.35; }
+.fact .ff { padding: 0 12px 14px; font-size: 13px; color: #6b5f66; display: flex; align-items: center; gap: 6px; }
+.toast { display: flex; gap: 10px; align-items: center; padding: 10px 12px 12px; font-size: 16px; line-height: 1.3; }
+.toast.ok { background: var(--g-green); box-shadow: 0 -3px 0 0 var(--g-ink), 0 3px 0 0 var(--g-ink), -3px 0 0 0 var(--g-ink), 3px 0 0 0 var(--g-ink), inset 0 -4px 0 0 var(--g-green-d); font-size: 20px; font-weight: 700; }
+.toast.soft { background: var(--g-cream); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 4px 3px; }
+@media (prefers-reduced-motion: reduce) { .dialog .next { animation: none; } }
+
+/* voice */
+#voice { display: grid; border-top: 1px solid var(--line); }
+.vrow { display: grid; grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.vwhen { font-size: 13px; font-weight: 700; color: var(--muted); padding-top: 2px; }
+.vline { font-size: 15.5px; color: var(--muted); }
+.vline.on { color: var(--ink); }
+.vline b { font: 700 11px/1 var(--f-pixel); display: inline-block; padding: 3px 5px 4px; margin-right: 8px; background: var(--line); color: var(--ink); vertical-align: 2px; }
+.vline.on b { background: var(--sun); color: var(--g-ink); }
+@media (max-width: 720px) { .vrow { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+
+/* questions */
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); padding: 12px 14px; }
+.qs li::before { content: counter(q); font: 700 20px/1 var(--f-pixel); background: var(--sun); color: var(--g-ink); display: grid; place-items: center; height: 34px; }
+footer { margin-top: 48px; border-top: 1px solid var(--line); padding-block: 18px 32px; font-size: 13px; color: var(--muted); }
+
+.tagline.below { display: none; }
+@media (max-width: 640px) {
+  .hero-char { grid-template-columns: minmax(0, 1fr); }
+  .hero-title { max-width: 70%; top: 6%; }
+  .hero-title .tagline { display: none; }
+  .tagline.below { display: block; margin: 7px 3px 3px; box-shadow: none; font-size: 14px; }
+  .brand span { display: none; }
+  .langs .lbl { display: none; }
+  .stage { min-height: 130px; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><b>Nusantara Express</b><span data-t="meta.sheet">Lembar aset v0.1</span></div>
+    <div class="langs">
+      <span class="lbl" data-t="lang.label">Bahasa</span>
+      <div class="gseg" role="group" aria-label="Bahasa / Language">
+        <button type="button" id="lang-id" data-lang="id" aria-pressed="true">ID</button>
+        <button type="button" id="lang-en" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero">
+    <canvas id="hero" width="240" height="120" role="img" aria-label="Oyen flying Si Capung over the sea, with a pinisi ship and a volcano island"></canvas>
+    <div class="hero-title">
+      <h1><span>Nusantara</span><span>Express</span></h1>
+      <p class="tagline" data-t="hero.tagline"></p>
+    </div>
+    <p class="tagline below" data-t="hero.tagline"></p>
+  </div>
+  <div class="lede">
+    <p class="note" data-t="hero.note"></p>
+    <p data-t="intro"></p>
+  </div>
+
+  <section class="sec" id="tone">
+    <div class="sec-head"><h2 data-t="tone.h"></h2><p data-t="tone.p"></p></div>
+    <div class="pillars">
+      <div class="pillar"><h3 data-t="tone.1.h"></h3><p data-t="tone.1.p"></p></div>
+      <div class="pillar"><h3 data-t="tone.2.h"></h3><p data-t="tone.2.p"></p></div>
+      <div class="pillar"><h3 data-t="tone.3.h"></h3><p data-t="tone.3.p"></p></div>
+    </div>
+    <div class="pal-wrap"><h3 data-t="pal.h"></h3><p data-t="pal.p"></p><ul id="palette"></ul></div>
+  </section>
+
+  <section class="sec" id="characters">
+    <div class="sec-head"><h2 data-t="chars.h"></h2><p data-t="chars.p"></p></div>
+    <article class="card hero-char">
+      <div class="stage"><span id="oyen-big"></span></div>
+      <div class="card-body">
+        <span class="chip" data-t="oyen.tag"></span>
+        <h3>Oyen</h3>
+        <p class="place" data-t="oyen.role"></p>
+        <p data-t="oyen.bio"></p>
+        <div class="face-row">
+          <figure><span data-spr="oyenFace" data-scale="3"></span></figure>
+          <figure><span data-spr="icons.paket" data-scale="3"></span></figure>
+          <figure><span data-spr="icons.ikan" data-scale="3"></span></figure>
+        </div>
+      </div>
+    </article>
+    <div class="grid g-people" id="people"></div>
+  </section>
+
+  <section class="sec" id="vehicles">
+    <div class="sec-head"><h2 data-t="veh.h"></h2><p data-t="veh.p"></p></div>
+    <div class="grid g-veh">
+      <article class="card"><div class="stage tall"><span id="capung"></span></div>
+        <div class="card-body"><h4>Si Capung</h4><p class="place" data-t="veh.start"></p><p data-t="veh.capung"></p></div></article>
+      <article class="card"><div class="stage tall"><span id="pinisi"></span></div>
+        <div class="card-body"><h4>Pinisi</h4><p class="place" data-t="veh.unlock"></p><p data-t="veh.pinisi"></p></div></article>
+    </div>
+  </section>
+
+  <section class="sec" id="food-sec">
+    <div class="sec-head"><h2 data-t="food.h"></h2><p data-t="food.p"></p></div>
+    <div class="grid g-food" id="food"></div>
+  </section>
+
+  <section class="sec" id="houses-sec">
+    <div class="sec-head"><h2 data-t="house.h"></h2><p data-t="house.p"></p></div>
+    <div class="grid g-house" id="houses"></div>
+  </section>
+
+  <section class="sec" id="map-sec">
+    <div class="sec-head"><h2 data-t="map.h"></h2><p data-t="map.p"></p></div>
+    <div class="map-frame">
+      <div class="map-inner">
+        <canvas id="map" width="168" height="64" role="img" aria-label="Pixel map of Indonesia with eight delivery stops"></canvas>
+        <div id="map-labels"></div>
+      </div>
+    </div>
+    <p class="map-hint" data-t="map.hint"></p>
+    <ul id="legend"></ul>
+    <p class="map-note" data-t="map.note"></p>
+  </section>
+
+  <section class="sec" id="ui">
+    <div class="sec-head"><h2 data-t="ui.h"></h2><p data-t="ui.p"></p></div>
+    <div class="ui-grid">
+      <div class="ui-cell">
+        <h3 data-t="ui.order"></h3>
+        <div class="board">
+          <div class="gp order">
+            <div class="ribbon" data-t="g.newOrder"></div>
+            <div class="who"><span data-spr="mamaYosina" data-face="1" data-scale="3"></span><div><b>Mama Yosina</b><small>Jayapura, Papua</small></div></div>
+            <p class="msg" data-t="g.orderMsg"></p>
+            <div class="clue"><b data-t="g.clue"></b><span data-t="g.clueText"></span></div>
+            <div class="acts"><button type="button" class="gbtn primary" data-t="g.accept"></button><button type="button" class="gbtn" data-t="g.later"></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="ui-cell">
+        <h3 data-t="ui.hud"></h3>
+        <div class="board">
+          <div class="hud">
+            <span class="it"><span data-spr="icons.koin" data-scale="2"></span>120</span>
+            <span class="it"><span data-spr="icons.bintang" data-scale="2"></span>7</span>
+            <span class="it"><span data-spr="icons.paket" data-scale="2"></span>2/3</span>
+            <button type="button" class="gbtn pause" data-t="g.pause"></button>
+          </div>
+        </div>
+        <h3 data-t="ui.dialog"></h3>
+        <div class="board">
+          <div class="gp dialog">
+            <span class="tag">Oyen</span>
+            <span data-spr="oyenFace" data-scale="3"></span>
+            <p data-t="g.oyenLine"></p>
+            <span class="next" aria-hidden="true"></span>
+          </div>
+        </div>
+        <h3 data-t="ui.feedback"></h3>
+        <div class="board">
+          <div class="toast ok" style="font-family: var(--f-pixel); color: var(--g-ink)"><span data-spr="icons.koin" data-scale="2"></span><span data-t="g.delivered"></span><span>+50</span></div>
+          <div class="gp toast soft"><span data-spr="icons.pin" data-scale="2"></span><span data-t="g.wrong"></span></div>
+        </div>
+      </div>
+      <div class="ui-cell">
+        <h3 data-t="ui.fact"></h3>
+        <div class="board">
+          <div class="gp fact">
+            <div class="fh" data-t="g.didYouKnow"></div>
+            <div class="fb"><span data-spr="food.rendang" data-scale="4"></span><p data-t="g.factRendang"></p></div>
+            <div class="ff"><span data-spr="icons.bintang" data-scale="1"></span><span data-t="g.saved"></span></div>
+          </div>
+        </div>
+        <h3 data-t="ui.buttons"></h3>
+        <div class="board">
+          <div class="btn-row">
+            <button type="button" class="gbtn primary" data-t="g.fly"></button>
+            <button type="button" class="gbtn sea" data-t="g.map"></button>
+            <button type="button" class="gbtn" data-t="g.book"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="voice-sec">
+    <div class="sec-head"><h2 data-t="voice.h"></h2><p data-t="voice.p"></p></div>
+    <div id="voice"></div>
+  </section>
+
+  <section class="sec" id="calls">
+    <div class="sec-head"><h2 data-t="q.h"></h2><p data-t="q.p"></p></div>
+    <ol class="qs">
+      <li data-t="q.1"></li><li data-t="q.2"></li><li data-t="q.3"></li><li data-t="q.4"></li><li data-t="q.5"></li>
+    </ol>
+  </section>
+
+  <footer data-t="foot"></footer>
+</main>
+<!--__SCRIPTS__-->
