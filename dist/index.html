@@ -1461,7 +1461,7 @@ NX.WORLD = {"W":216,"H":104,"MX":24,"MY":20,"rows":[".................n.........
   }
   let resizeT = 0;
   addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => scene && fit(), 60); });
-  const turned = () => !!(window.matchMedia && matchMedia('(orientation: portrait) and (pointer: coarse)').matches);
+  const turned = () => getComputedStyle(game).transform !== 'none';
   const toLogical = e => {
     const r = cv.getBoundingClientRect();
     if (turned()) return [(e.clientY - r.top) / r.height * cv.width, (r.right - e.clientX) / r.width * cv.height];
@@ -1624,10 +1624,10 @@ NX.WORLD = {"W":216,"H":104,"MX":24,"MY":20,"rows":[".................n.........
     return p;
   }
   const MAPWAVES = (() => { const r = NX.rng(3), out = []; for (let i = 0; i < 110; i++) out.push([Math.floor(r() * WLD.W), Math.floor(r() * WLD.H)]); return out; })();
+  // Layout offsets, not screen rects: they stay correct when the game is rotated for portrait phones.
   function edgeH(sel, fromTop) {
-    const el = $(sel), g = game.getBoundingClientRect(); if (!el) return 0;
-    const r = el.getBoundingClientRect(); if (!r.height) return 0;
-    return fromTop ? r.bottom - g.top : g.bottom - r.top;
+    const el = $(sel); if (!el || !el.offsetHeight) return 0;
+    return fromTop ? el.offsetTop + el.offsetHeight : game.clientHeight - el.offsetTop;
   }
   function routePts(a, b) {
     const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -2083,8 +2083,12 @@ NX.WORLD = {"W":216,"H":104,"MX":24,"MY":20,"rows":[".................n.........
   function goTitle() { $('#book').hidden = true; setScene(TitleScene); applyLang(G.lang); }
   async function startPlay() {
     Snd.ensure(); Snd.click();
-    try { if (window.matchMedia('(pointer: coarse)').matches && game.requestFullscreen && !document.fullscreenElement) await game.requestFullscreen(); } catch (e) { /* not allowed here */ }
-    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) { /* not allowed here */ }
+    // Fullscreen the page (not #game, whose rotation the browser would strip) and try to lock landscape.
+    // Either may be refused or never answer inside an embed, so neither is allowed to hold up the game.
+    const settle = p => Promise.race([Promise.resolve(p).catch(() => {}), new Promise(r => setTimeout(r, 700))]);
+    const root = document.documentElement;
+    if (window.matchMedia('(pointer: coarse)').matches && root.requestFullscreen && !document.fullscreenElement) { try { await settle(root.requestFullscreen()); } catch (e) { /* refused */ } }
+    if (screen.orientation && screen.orientation.lock) { try { await settle(screen.orientation.lock('landscape')); } catch (e) { /* refused */ } }
     await fade(() => setScene(MapScene));
     busy = true;
     try {
